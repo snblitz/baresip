@@ -41,7 +41,7 @@ static opus_int32 srate2bw(opus_int32 srate)
 }
 
 
-#if 0
+#if 1
 static const char *bwname(opus_int32 bw)
 {
 	switch (bw) {
@@ -91,6 +91,9 @@ int opus_encode_update(struct auenc_state **aesp, const struct aucodec *ac,
 
 	if (!aes) {
 		const opus_int32 complex = opus_complexity;
+		const opus_int32 inbandfec = opus_inbandfec;
+		const opus_int32 inbandfecperc = opus_inbandfecperc;
+
 		int opuserr;
 
 		aes = mem_zalloc(sizeof(*aes), destructor);
@@ -110,7 +113,8 @@ int opus_encode_update(struct auenc_state **aesp, const struct aucodec *ac,
 		}
 
 		(void)opus_encoder_ctl(aes->enc, OPUS_SET_COMPLEXITY(complex));
-
+	        (void)opus_encoder_ctl(aes->enc, OPUS_SET_INBAND_FEC(inbandfec));
+	        (void)opus_encoder_ctl(aes->enc, OPUS_SET_PACKET_LOSS_PERC(inbandfecperc));
 		*aesp = aes;
 	}
 
@@ -120,6 +124,7 @@ int opus_encode_update(struct auenc_state **aesp, const struct aucodec *ac,
 	prm.cbr        = 0;
 	prm.inband_fec = 0;
 	prm.dtx        = 0;
+	prm.inband_fec_perc = 0;
 
 	opus_decode_fmtp(&prm, fmtp);
 
@@ -143,11 +148,14 @@ int opus_encode_update(struct auenc_state **aesp, const struct aucodec *ac,
 	(void)opus_encoder_ctl(aes->enc, OPUS_SET_BITRATE(prm.bitrate));
 	(void)opus_encoder_ctl(aes->enc, OPUS_SET_FORCE_CHANNELS(fch));
 	(void)opus_encoder_ctl(aes->enc, OPUS_SET_VBR(vbr));
+	/*
 	(void)opus_encoder_ctl(aes->enc, OPUS_SET_INBAND_FEC(prm.inband_fec));
+	(void)opus_encoder_ctl(aes->enc, OPUS_SET_PACKET_LOSS_PERC(prm.inband_fec_perc));
+	*/
 	(void)opus_encoder_ctl(aes->enc, OPUS_SET_DTX(prm.dtx));
 
 
-#if 0
+#if 1
 	{
 	opus_int32 bw, complex;
 
@@ -158,11 +166,12 @@ int opus_encode_update(struct auenc_state **aesp, const struct aucodec *ac,
 	(void)opus_encoder_ctl(aes->enc, OPUS_GET_INBAND_FEC(&prm.inband_fec));
 	(void)opus_encoder_ctl(aes->enc, OPUS_GET_DTX(&prm.dtx));
 	(void)opus_encoder_ctl(aes->enc, OPUS_GET_COMPLEXITY(&complex));
+	(void)opus_encoder_ctl(aes->enc, OPUS_GET_PACKET_LOSS_PERC(&prm.inband_fec_perc));
 
 	debug("opus: encode bw=%s bitrate=%i fch=%s "
-	      "vbr=%i fec=%i dtx=%i complex=%i\n",
+	      "vbr=%i fec=%i fec_perc=%i dtx=%i complex=%i\n",
 	      bwname(bw), prm.bitrate, chname(fch),
-	      vbr, prm.inband_fec, prm.dtx, complex);
+	      vbr, prm.inband_fec, prm.inband_fec_perc, prm.dtx, complex);
 	}
 #endif
 

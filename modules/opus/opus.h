@@ -12,6 +12,7 @@ struct opus_param {
 	opus_int32 cbr;
 	opus_int32 inband_fec;
 	opus_int32 dtx;
+	opus_int32 inband_fec_perc;
 };
 
 
@@ -23,6 +24,8 @@ int opus_encode_frm(struct auenc_state *aes, uint8_t *buf, size_t *len,
 
 extern uint32_t opus_complexity;
 extern opus_int32 opus_application;
+extern bool opus_inbandfec;
+extern uint32_t opus_inbandfecperc;
 
 /* Decode */
 int opus_decode_update(struct audec_state **adsp, const struct aucodec *ac,

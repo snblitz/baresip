@@ -140,6 +140,7 @@ int opus_multistream_encode_update(struct auenc_state **aesp,
 	prm.stereo     = 1;
 	prm.cbr        = 0;
 	prm.inband_fec = 0;
+	prm.inband_fec_perc = 0;
 	prm.dtx        = 0;
 
 	opus_multistream_decode_fmtp(&prm, fmtp);
@@ -171,7 +172,8 @@ int opus_multistream_encode_update(struct auenc_state **aesp,
 				   OPUS_SET_INBAND_FEC(prm.inband_fec));
 	(void)opus_multistream_encoder_ctl(aes->enc,
 					   OPUS_SET_DTX(prm.dtx));
-
+	(void)opus_multistream_encoder_ctl(aes->enc,
+				   OPUS_SET_PACKET_LOSS_PERC(prm.inband_fec_perc));
 
 #if 0
 	{
@@ -191,11 +193,13 @@ int opus_multistream_encode_update(struct auenc_state **aesp,
 					   OPUS_GET_DTX(&prm.dtx));
 	(void)opus_multistream_encoder_ctl(aes->enc,
 					   OPUS_GET_COMPLEXITY(&complex));
+	(void)opus_multistream_encoder_ctl(aes->enc,
+				   OPUS_GET_PACKET_LOSS_PERC(&prm.inband_fec_perc));
 
 	debug("opus_multistream: encode bw=%s bitrate=%i fch=%s "
-	      "vbr=%i fec=%i dtx=%i complex=%i\n",
+	      "vbr=%i fec=%i fec_perc=%i dtx=%i complex=%i\n",
 	      bwname(bw), prm.bitrate, chname(fch),
-	      vbr, prm.inband_fec, prm.dtx, complex);
+	      vbr, prm.inband_fec, prm.inband_fec_perc, prm.dtx, complex);
 	}
 #endif
 

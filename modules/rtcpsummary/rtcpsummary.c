@@ -8,7 +8,7 @@
 #include <baresip.h>
 
 
-static void printRtcpSummaryLine(const struct stream *s)
+void printRtcpSummaryLine(const struct stream *s)
 {
 	const struct rtcp_stats *rtcp;
 	rtcp = stream_rtcp_stats(s);

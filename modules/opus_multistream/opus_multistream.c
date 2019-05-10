@@ -25,6 +25,7 @@
   opus_bitrate    128000     # Average bitrate in [bps]
   opus_cbr        {yes,no}   # Constant Bitrate (inverse of VBR)
   opus_inbandfec  {yes,no}   # Enable inband Forward Error Correction (FEC)
+  opus_inbandfecperc {0-100} # Forward Error Correction Percent
   opus_dtx        {yes,no}   # Enable Discontinuous Transmission (DTX)
   opus_complexity {0-10}     # Encoder's computational complexity (10 max)
   opus_application {audio, voip} # Encoder's intended application

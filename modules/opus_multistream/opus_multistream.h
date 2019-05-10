@@ -12,6 +12,7 @@ struct opus_multistream_param {
 	opus_int32 cbr;
 	opus_int32 inband_fec;
 	opus_int32 dtx;
+	opus_int32 inband_fec_perc;
 };
 
 
