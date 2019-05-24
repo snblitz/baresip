@@ -7,9 +7,11 @@
 #include <re.h>
 #include <rem.h>
 #include <baresip.h>
+#ifdef HAVE_PTHREAD
+#include <pthread.h>
+#endif
 #include "modules/audio_processing/aec/echo_cancellation.h"
 #include "aec.h"
-
 
 /**
  * @defgroup webrtc_aec webrtc_aec
@@ -41,8 +43,10 @@ int webrtc_aec_alloc(struct aec **stp, void **ctx, struct aufilt_prm *prm)
 	if (!stp || !ctx || !prm)
 		return EINVAL;
 
-	if (prm->srate > MAX_SAMPLE_RATE || prm->ch > MAX_CHANNELS)
+	if (prm->srate > MAX_SAMPLE_RATE || prm->ch > MAX_CHANNELS) {
+		warning("webrtc_aec: unsupported samplerate or channels\n");
 		return ENOTSUP;
+	}
 
 	if (*ctx) {
 		aec = (struct aec *)*ctx;

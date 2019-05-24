@@ -104,6 +104,33 @@ static void set_state(struct call *call, enum state st)
 }
 
 
+static const struct sdp_format *sdp_media_rcodec(const struct sdp_media *m)
+{
+	const struct list *lst;
+	struct le *le;
+
+	if (!m || !sdp_media_rport(m))
+		return NULL;
+
+	lst = sdp_media_format_lst(m, false);
+
+	for (le=list_head(lst); le; le=le->next) {
+
+		const struct sdp_format *fmt = le->data;
+
+		if (!fmt->sup)
+			continue;
+
+		if (!fmt->data)
+			continue;
+
+		return fmt;
+	}
+
+	return NULL;
+}
+
+
 static void call_stream_start(struct call *call, bool active)
 {
 	const struct sdp_format *sc;
@@ -112,35 +139,30 @@ static void call_stream_start(struct call *call, bool active)
 	debug("call: stream start (active=%d)\n", active);
 
 	/* Audio Stream */
-	sc = sdp_media_rformat(stream_sdpmedia(audio_strm(call->audio)), NULL);
+	sc = sdp_media_rcodec(stream_sdpmedia(audio_strm(call->audio)));
 	if (sc) {
 		struct aucodec *ac = sc->data;
 
-		if (ac) {
-			err  = audio_encoder_set(call->audio, sc->data,
-						 sc->pt, sc->params);
-			if (err) {
-				warning("call: start:"
-					" audio_encoder_set error: %m\n", err);
-			}
-			err |= audio_decoder_set(call->audio, sc->data,
-						 sc->pt, sc->params);
-			if (err) {
-				warning("call: start:"
-					" audio_decoder_set error: %m\n", err);
-			}
-
-			if (!err) {
-				err = audio_start(call->audio);
-				if (err) {
-					warning("call: start:"
-						" audio_start error: %m\n",
-						err);
-				}
-			}
+		err  = audio_encoder_set(call->audio, ac,
+					 sc->pt, sc->params);
+		if (err) {
+			warning("call: start:"
+				" audio_encoder_set error: %m\n", err);
 		}
-		else {
-			info("call: no common audio-codecs..\n");
+		err |= audio_decoder_set(call->audio, ac,
+					 sc->pt, sc->params);
+		if (err) {
+			warning("call: start:"
+				" audio_decoder_set error: %m\n", err);
+		}
+
+		if (!err) {
+			err = audio_start(call->audio);
+			if (err) {
+				warning("call: start:"
+					" audio_start error: %m\n",
+					err);
+			}
 		}
 	}
 	else {
@@ -301,18 +323,14 @@ static int update_media(struct call *call)
 	if (call->acc->mnat && call->acc->mnat->updateh && call->mnats)
 		err = call->acc->mnat->updateh(call->mnats);
 
-	sc = sdp_media_rformat(stream_sdpmedia(audio_strm(call->audio)), NULL);
+	sc = sdp_media_rcodec(stream_sdpmedia(audio_strm(call->audio)));
 	if (sc) {
 		struct aucodec *ac = sc->data;
-		if (ac) {
-			err  = audio_decoder_set(call->audio, sc->data,
-						 sc->pt, sc->params);
-			err |= audio_encoder_set(call->audio, sc->data,
-						 sc->pt, sc->params);
-		}
-		else {
-			info("no common audio-codecs..\n");
-		}
+
+		err  = audio_decoder_set(call->audio, ac,
+					 sc->pt, sc->params);
+		err |= audio_encoder_set(call->audio, ac,
+					 sc->pt, sc->params);
 	}
 	else {
 		info("audio stream is disabled..\n");
@@ -1175,7 +1193,6 @@ static int sipsess_offer_handler(struct mbuf **descp,
 {
 	const bool got_offer = (0 != mbuf_get_left(msg->mb));
 	struct call *call = arg;
-	struct le *le;
 	int err;
 
 	MAGIC_CHECK(call);
@@ -1196,8 +1213,6 @@ static int sipsess_offer_handler(struct mbuf **descp,
 		if (err)
 			return err;
 
-		FOREACH_STREAM
-			stream_reset(le->data);
 	}
 
 	/* Encode SDP Answer */
@@ -1317,7 +1332,8 @@ static void sipsess_info_handler(struct sip *sip, const struct sip_msg *msg,
 			char s = toupper(sig.p[0]);
 			uint32_t duration = pl_u32(&dur);
 
-			info("received DTMF: '%c' (duration=%r)\n", s, &dur);
+			info("call: received DTMF: '%c' (duration=%r)\n",
+			     s, &dur);
 
 			(void)sip_reply(sip, msg, 200, "OK");
 
@@ -1438,7 +1454,7 @@ static bool have_common_audio_codecs(const struct call *call)
 	const struct sdp_format *sc;
 	struct aucodec *ac;
 
-	sc = sdp_media_rformat(stream_sdpmedia(audio_strm(call->audio)), NULL);
+	sc = sdp_media_rcodec(stream_sdpmedia(audio_strm(call->audio)));
 	if (!sc)
 		return false;
 

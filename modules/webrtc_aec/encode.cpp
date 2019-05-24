@@ -8,7 +8,9 @@
 #include <re.h>
 #include <rem.h>
 #include <baresip.h>
-#include "modules/audio_processing/aec/echo_cancellation.h"
+#ifdef HAVE_PTHREAD
+#include <pthread.h>
+#endif
 #include "aec.h"
 
 
@@ -20,6 +22,7 @@ struct aec_enc {
 
 	struct aec *aec;
 	float buf[160];
+	enum aufmt fmt;
 };
 
 
@@ -39,11 +42,17 @@ int webrtc_aec_encode_update(struct aufilt_enc_st **stp, void **ctx,
 	struct aec_enc *st;
 	int err;
 
-	if (!stp || !af)
+	if (!stp || !af || !prm)
 		return EINVAL;
 
-	if (prm->fmt != AUFMT_FLOAT) {
-		warning("webrtc_aec: unsupported sample format (%s)\n",
+	switch (prm->fmt) {
+
+	case AUFMT_S16LE:
+	case AUFMT_FLOAT:
+		break;
+
+	default:
+		warning("webrtc_aec: enc: unsupported sample format (%s)\n",
 			aufmt_name((enum aufmt)prm->fmt));
 		return ENOTSUP;
 	}
@@ -54,6 +63,8 @@ int webrtc_aec_encode_update(struct aufilt_enc_st **stp, void **ctx,
 	st = (struct aec_enc *)mem_zalloc(sizeof(*st), enc_destructor);
 	if (!st)
 		return ENOMEM;
+
+	st->fmt = (enum aufmt)prm->fmt;
 
 	err = webrtc_aec_alloc(&st->aec, ctx, prm);
 	if (err)
@@ -69,25 +80,21 @@ int webrtc_aec_encode_update(struct aufilt_enc_st **stp, void **ctx,
 }
 
 
-int webrtc_aec_encode(struct aufilt_enc_st *st, void *sampv, size_t *sampc)
+static int encode_float(struct aec_enc *enc, float *sampv, size_t sampc)
 {
-	struct aec_enc *enc = (struct aec_enc *)st;
 	struct aec *aec = enc->aec;
 	const float *nearend = (const float *)sampv;
-	float *rec = (float *)sampv;
 	const float *in;
 	float *out;
+	float *rec = (float *)sampv;
 	const int num_bands = 1;
 	size_t i;
-	int err = 0;
 	int r;
-
-	if (!st || !sampv || !sampc)
-		return EINVAL;
+	int err = 0;
 
 	pthread_mutex_lock(&aec->mutex);
 
-	for (i = 0; i < *sampc; i += aec->subframe_len) {
+	for (i = 0; i < sampc; i += aec->subframe_len) {
 
 		in  = &nearend[i];
 		out = enc->buf;
@@ -108,6 +115,46 @@ int webrtc_aec_encode(struct aufilt_enc_st *st, void *sampv, size_t *sampc)
 
  out:
 	pthread_mutex_unlock(&aec->mutex);
+
+	return err;
+}
+
+
+int webrtc_aec_encode(struct aufilt_enc_st *st, void *sampv, size_t *sampc)
+{
+	struct aec_enc *enc = (struct aec_enc *)st;
+	float *flt;
+	int err = 0;
+
+	if (!st || !sampv || !sampc)
+		return EINVAL;
+
+	switch (enc->fmt) {
+
+	case AUFMT_S16LE:
+		/* convert from S16 to FLOAT */
+		flt = (float *)mem_alloc(*sampc * sizeof(float), NULL);
+		if (!flt)
+			return ENOMEM;
+
+		auconv_from_s16(AUFMT_FLOAT, flt, (int16_t *)sampv, *sampc);
+
+		/* process */
+		err = encode_float(enc, flt, *sampc);
+
+		/* convert from FLOAT to S16 */
+		auconv_to_s16((int16_t *)sampv, AUFMT_FLOAT, flt, *sampc);
+
+		mem_deref(flt);
+		break;
+
+	case AUFMT_FLOAT:
+		err = encode_float(enc, (float *)sampv, *sampc);
+		break;
+
+	default:
+		return ENOTSUP;
+	}
 
 	return err;
 }
